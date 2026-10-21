@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Newton's Blueberries</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.js"></script>
+  
+  <style>
+    /* 1. 기본 설정 및 폰트 */
+    body, html {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      overflow: hidden; 
+      background-color: #FFFDD0; /* 크림 옐로우 */
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    /* 2. 감각적인 표지 (인터랙션 추가) */
+    #cover {
+      position: absolute;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background-color: #FCE4EC; /* 연한 핑크 */
+      color: #0F4C81; /* 클래식 블루 */
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 50px 80px;
+      box-sizing: border-box;
+      z-index: 10;
+      /* 화면 전환 애니메이션 부드럽게 */
+      transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1), transform 1s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      perspective: 1000px; /* 3D 텍스트 효과를 위한 원근감 설정 */
+    }
+
+    /* 패럴랙스가 적용될 컨테이너들 */
+    .title-container, .info-container {
+      transition: transform 0.1s ease-out; /* 마우스 움직임에 즉각 반응 */
+    }
+
+    .title {
+      font-size: 5rem;
+      font-family: "Times New Roman", Times, serif; 
+      font-weight: bold;
+      line-height: 1.1;
+      /* 클릭 시 텍스트가 사라지는 애니메이션용 클래스 */
+      transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.8s ease;
+    }
+
+    .info {
+      writing-mode: vertical-rl; 
+      text-orientation: mixed;
+      font-size: 1.2rem;
+      letter-spacing: 5px;
+      height: 60vh;
+      display: flex;
+      align-items: center;
+      transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.8s ease;
+    }
+
+    /* 화면 전환 시 텍스트가 스르륵 밀려나는 효과 */
+    #cover.hide .title { transform: translateX(-100px); opacity: 0; }
+    #cover.hide .info { transform: translateX(100px); opacity: 0; }
+
+    /* 3. 돌아가기 버튼 (디자인 개선) */
+    #back-btn {
+      position: absolute;
+      top: 40px; left: 40px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid #0F4C81;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-size: 0.9rem;
+      letter-spacing: 1px;
+      color: #0F4C81;
+      cursor: pointer;
+      z-index: 5;
+      opacity: 0; pointer-events: none; /* 초기엔 완전히 숨김 */
+      transition: all 0.4s ease;
+      backdrop-filter: blur(5px);
+    }
+    #back-btn.show {
+      opacity: 1; pointer-events: auto;
+    }
+    #back-btn:hover {
+      background: #0F4C81; color: #FFF;
+      transform: scale(1.05); /* 버튼 호버 시 살짝 커짐 */
+    }
+    
+    /* 4. p5.js 캔버스 등장 애니메이션 */
+    #defaultCanvas0 {
+      opacity: 0;
+      transform: scale(0.9);
+      transition: opacity 1.2s ease, transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #defaultCanvas0.show {
+      opacity: 1;
+      transform: scale(1);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 표지 화면 -->
+  <div id="cover" onclick="startInteraction()">
+    <div class="title-container" id="titleWrap">
+      <div class="title">Newton's<br>Blueberries</div>
+    </div>
+    <div class="info-container" id="infoWrap">
+      <div class="info">20121 최유진 &nbsp;&nbsp;&nbsp; 10605 김유민</div>
+    </div>
+  </div>
+
+  <button id="back-btn" onclick="resetInteraction()">BACK</button>
+
+  <script>
+    // --- 1. 표지 마우스 패럴랙스 (인터랙션) 스크립트 ---
+    const cover = document.getElementById('cover');
+    const titleWrap = document.getElementById('titleWrap');
+    const infoWrap = document.getElementById('infoWrap');
+
+    cover.addEventListener('mousemove', (e) => {
+      // 마우스 위치에 따라 텍스트를 미세하게 회전 (3D 느낌)
+      const xAxis = (window.innerWidth / 2 - e.pageX) / 50; 
+      const yAxis = (window.innerHeight / 2 - e.pageY) / 50;
+      titleWrap.style.transform = `rotateY(${xAxis}deg) rotateX(${yAxis}deg)`;
+      infoWrap.style.transform = `rotateY(${xAxis}deg) rotateX(${yAxis}deg)`;
+    });
+
+    cover.addEventListener('mouseleave', () => {
+      // 마우스가 떠나면 원래 위치로 부드럽게 복구
+      titleWrap.style.transform = `rotateY(0deg) rotateX(0deg)`;
+      infoWrap.style.transform = `rotateY(0deg) rotateX(0deg)`;
+    });
+
+    // --- 2. 화면 전환 함수 ---
+    let isCover = true;
+    function startInteraction() {
+      if(!isCover) return;
+      
+      // 표지 애니메이션 시작 (텍스트 양옆으로 밀려나며 사라짐)
+      cover.classList.add('hide');
+      cover.style.opacity = '0'; 
+      
+      setTimeout(() => {
+        cover.style.display = 'none';
+        document.getElementById('back-btn').classList.add('show');
+        document.getElementById('defaultCanvas0').classList.add('show');
+        isCover = false;
+      }, 800); // CSS transition 시간과 맞춤
+    }
+
+    function resetInteraction() {
+      // 표지 원상복구
+      cover.style.display = 'flex';
+      document.getElementById('back-btn').classList.remove('show');
+      document.getElementById('defaultCanvas0').classList.remove('show');
+      
+      // 약간의 지연 후 opacity 복구
+      setTimeout(() => {
+        cover.classList.remove('hide');
+        cover.style.opacity = '1'; 
+      }, 50);
+      
+      isCover = true;
+      blueberries = []; // 배열 초기화
+    }
+
+    // --- 3. p5.js 물리 엔진 및 그래픽 스크립트 ---
+    let earth;
+    let blueberries = [];
+    let slingshot;
+    let hoverScale = 1; // 발사대 호버 애니메이션용 변수
+
+    function setup() {
+      let canvas = createCanvas(windowWidth, windowHeight);
+      canvas.id('defaultCanvas0'); // CSS 애니메이션을 위한 ID
+      
+      // 지구 크기 증가 및 질량 재조정 (원궤도를 위해)
+      earth = {
+        pos: createVector(width / 2, height / 2),
+        radius: 120, // 70에서 120으로 상당히 키움
+        mass: 3500   // 질량 증가
+      };
+      
+      // 발사대 (북극 산 꼭대기)
+      slingshot = {
+        origin: createVector(width / 2, height / 2 - earth.radius - 20),
+        dragging: false,
+        dragPos: createVector(0,0)
+      };
+    }
+
+    function draw() {
+      if (isCover) return; 
+      
+      background('#FFFDD0'); 
+      
+      // [지구와 산 그리기]
+      noStroke();
+      fill('#A3C1AD'); 
+      // 산 (발사대 받침대)
+      triangle(
+        earth.pos.x - 20, earth.pos.y - earth.radius + 10,
+        earth.pos.x + 20, earth.pos.y - earth.radius + 10,
+        earth.pos.x, earth.pos.y - earth.radius - 20
+      );
+      // 지구 본체
+      circle(earth.pos.x, earth.pos.y, earth.radius * 2);
+      
+      fill('#8FBC8F'); // 대륙 디테일
+      circle(earth.pos.x - 40, earth.pos.y + 30, 90);
+      circle(earth.pos.x + 50, earth.pos.y - 40, 70);
+      
+      // [블루베리 물리 계산 및 렌더링]
+      for (let i = blueberries.length - 1; i >= 0; i--) {
+        let b = blueberries[i];
+        
+        if (!b.stuck) {
+          let force = p5.Vector.sub(earth.pos, b.pos);
+          let distance = force.mag();
+          
+          if (distance <= earth.radius + b.radius) {
+            b.stuck = true; 
+            b.trail = []; // **수정 1: 부착되는 순간 꼬리 배열을 싹 비워서 지움**
+            force.normalize();
+            b.pos = p5.Vector.sub(earth.pos, p5.Vector.mult(force, earth.radius + b.radius - 1));
+          } else {
+            // 중력 계산 (원궤도 유도식)
+            // 거리의 제곱에 반비례하도록 하여 실제 우주 물리법칙 적용
+            let strength = (earth.mass * b.mass) / (distance * distance); 
+            force.setMag(strength);
+            b.applyForce(force);
+            b.update();
+          }
+        }
+        b.display(); 
+        
+        // 화면을 크게 벗어나면 삭제
+        if (b.pos.x < -1500 || b.pos.x > width + 1500 || b.pos.y < -1500 || b.pos.y > height + 1500) {
+          blueberries.splice(i, 1);
+        }
+      }
+      
+      // [발사 대기 중인 블루베리 및 슬링샷 라인]
+      // 마우스가 발사대 근처에 있으면 블루베리가 살짝 커짐 (인터랙션)
+      let d = dist(mouseX, mouseY, slingshot.origin.x, slingshot.origin.y);
+      if (d < 40 && !slingshot.dragging) {
+        hoverScale = lerp(hoverScale, 1.3, 0.2); // 부드럽게 1.3배 커짐
+        cursor('grab');
+      } else {
+        hoverScale = lerp(hoverScale, 1.0, 0.2);
+        cursor('default');
+      }
+
+      // 발사대 블루베리 그리기
+      push();
+      translate(slingshot.origin.x, slingshot.origin.y);
+      scale(hoverScale);
+      
+      if(d < 40 && !slingshot.dragging) {
+        // 호버 시 은은한 후광 추가
+        fill(75, 0, 130, 50); 
+        circle(0, 0, 35); 
+      }
+      
+      fill('#4B0082'); 
+      circle(0, 0, 20); 
+      fill(255, 120);
+      circle(-3, -3, 5); 
+      pop();
+      
+      // 드래그(당기는 중) 시 라인 그리기
+      if (slingshot.dragging) {
+        cursor('grabbing');
+        stroke(100, 100);
+        strokeWeight(2);
+        line(slingshot.origin.x, slingshot.origin.y, slingshot.dragPos.x, slingshot.dragPos.y);
+        noStroke();
+        fill('#4B0082');
+        circle(slingshot.dragPos.x, slingshot.dragPos.y, 16);
+      }
+    }
+
+    function mousePressed() {
+      if (isCover) return;
+      let d = dist(mouseX, mouseY, slingshot.origin.x, slingshot.origin.y);
+      if (d < 40) { 
+        slingshot.dragging = true;
+        slingshot.dragPos.set(mouseX, mouseY);
+      }
+    }
+
+    function mouseDragged() {
+      if (slingshot.dragging) {
+        slingshot.dragPos.set(mouseX, mouseY);
+      }
+    }
+
+    function mouseReleased() {
+      if (slingshot.dragging) {
+        slingshot.dragging = false;
+        let b = new Blueberry(slingshot.origin.x, slingshot.origin.y);
+        
+        let launchForce = p5.Vector.sub(slingshot.origin, slingshot.dragPos);
+        
+        // **수정 2: 원 궤도를 쉽게 만들기 위해 초기 발사 강도를 섬세하게 조절**
+        launchForce.mult(0.065); 
+        
+        b.vel = launchForce;
+        blueberries.push(b);
+      }
+    }
+
+    class Blueberry {
+      constructor(x, y) {
+        this.pos = createVector(x, y);
+        this.vel = createVector(0, 0);
+        this.acc = createVector(0, 0);
+        this.radius = 6;
+        this.mass = 1;
+        this.stuck = false; 
+        this.trail = [];    
+      }
+      
+      applyForce(force) {
+        let f = p5.Vector.div(force, this.mass);
+        this.acc.add(f);
+      }
+      
+      update() {
+        this.vel.add(this.acc);
+        this.pos.add(this.vel);
+        this.acc.mult(0);
+        
+        if (frameCount % 2 === 0) {
+          this.trail.push(this.pos.copy());
+          // 꼬리 길이
+          if (this.trail.length > 300) {
+            this.trail.shift();
+          }
+        }
+      }
+      
+      display() {
+        // 움직일 때만(stuck이 아닐 때만) 꼬리가 그려짐 (this.trail이 비워지기 때문)
+        if (this.trail.length > 0) {
+          noFill();
+          beginShape();
+          for (let i = 0; i < this.trail.length; i++) {
+            let alpha = map(i, 0, this.trail.length, 0, 180); 
+            stroke(40, 0, 150, alpha); 
+            strokeWeight(2.5);
+            vertex(this.trail[i].x, this.trail[i].y);
+          }
+          endShape();
+        }
+        
+        // 블루베리 본체
+        noStroke();
+        fill('#4B0082');
+        circle(this.pos.x, this.pos.y, this.radius * 2);
+        fill(255, 120); 
+        circle(this.pos.x - 2, this.pos.y - 2, 4);
+      }
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      earth.pos.set(width / 2, height / 2);
+      slingshot.origin.set(width / 2, height / 2 - earth.radius - 20);
+    }
+  </script>
+</body>
+</html>
